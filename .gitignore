@@ -1,0 +1,7 @@
+# A local copy of actionlint may live here; binaries are never committed.
+tools/
+bin/
+
+# Local Python artifacts and OS clutter.
+__pycache__/
+.DS_Store

@@ -1,0 +1,90 @@
+# ============================================================================
+# 05 — DAILY HEALTH CHECK
+# ----------------------------------------------------------------------------
+# What this workflow does, in one sentence:
+#   Once a day, GitHub quietly checks your whole repository — every
+#   Markdown link, plus a quick "is this repo still alive?" summary —
+#   and only makes noise when something needs your attention.
+#
+# Who needs this:
+#   Solo publishers maintaining many small repos ("hubs" of books and
+#   tools). You can't re-check everything by hand each week, but a robot
+#   will happily do it while you sleep.
+#
+# Secrets required:  NONE.
+#
+# Cost:  one free-run per day per repo is comfortably inside the free
+#   tier (an average run here is under a minute). See docs/cost-notes.md.
+# ============================================================================
+
+name: Daily Health Check
+
+on:
+  # "schedule" means: run on a clock, not because of a push. The value
+  # is standard "cron" syntax:  minute  hour  day-of-month  month  day
+  # This one means "23 minutes past 05:00, UTC, every day of every
+  # month, every day of the week". UTC is 5 hours ahead of US Eastern.
+  #
+  # Important plain-English truth about cron on Actions: GitHub skips
+  # scheduled runs during multi-day stretches of zero activity on the
+  # whole repo, and busy periods can jitter a run by several hours.
+  # That's normal and free-tier-legal; don't rely on minute precision.
+  schedule:
+    - cron: "23 5 * * *"
+
+  # Keep a manual ▶ button so you can run a health check right now,
+  # mid-day, without waiting for tomorrow morning.
+  workflow_dispatch:
+
+jobs:
+  check:
+    name: Look the whole repo over once a day
+    runs-on: ubuntu-latest
+
+    # A scheduled check only needs to LOOK. Write nothing.
+    permissions: {}
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      # HEALTH CHECK 1 — links. Exactly the same checker as workflow 02,
+      # but with one difference: it doesn't stop at the push-time files.
+      # check-path "." means the entire repository; scheduled runs check
+      # EVERY .md file, including pages that nobody edited in months.
+      - name: Check all Markdown links
+        uses: gaurav-nelson/github-action-markdown-link-check@v1
+        with:
+          check-path: "."
+          use-quiet-mode: "yes"
+          retry-count: "3"
+
+      # HEALTH CHECK 2 — action versions. Plain shell here (no extra
+      # action needed): grep lists every "uses:" line in your workflows
+      # so the summary always shows which versions you pin. If a major
+      # version (like v4 → v5) is available upstream, you'll spot the
+      # old number right in this list.
+      - name: List action versions in use
+        run: |
+          echo "### Action pins this repo uses" >> "$GITHUB_STEP_SUMMARY"
+          if grep -rn "uses:" .github/workflows/ > /tmp/uses.txt 2>/dev/null; then
+            cat /tmp/uses.txt >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "No workflows found in .github/workflows/ (that's fine for content-only repos)." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      # HEALTH CHECK 3 — freshness. Print the date of the most recent
+      # commit, so every morning's summary line starts with precisely
+      # how "alive" the repo was yesterday.
+      - name: Report repo freshness
+        run: |
+          echo "### Repository freshness" >> "$GITHUB_STEP_SUMMARY"
+          echo "Last commit: $(git log -1 --format=%cd --date=iso || echo unknown)" >> "$GITHUB_STEP_SUMMARY"
+
+      # A single calm closing line. Failures above already red-flag the
+      # run; if everything passed, this shows up as a green summary.
+      - name: Closing summary
+        if: always()
+        run: |
+          echo "### Daily Health Check finished" >> "$GITHUB_STEP_SUMMARY"
+          echo "Result: the run's status badge above tells you at a glance whether any link or version check failed." >> "$GITHUB_STEP_SUMMARY"

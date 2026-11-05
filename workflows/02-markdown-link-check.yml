@@ -1,0 +1,85 @@
+# ============================================================================
+# 02 — MARKDOWN LINK CHECKER
+# ----------------------------------------------------------------------------
+# What this workflow does, in one sentence:
+#   Every time you push, GitHub opens every Markdown file, visits each
+#   link inside it, and warns you the moment one is broken — so your
+#   book/website links never silently rot.
+#
+# Who needs this:
+#   Any repo with .md files (README, docs, a book draft, etc.).
+#
+# Secrets required:  NONE.
+#
+# Cost:  free on public repos. The checking itself runs on the free
+#   Actions runner; external websites are visited once, briefly.
+#
+# Note: this checks links at push time. For a full "everything, always"
+#   scan, see 05-daily-health-check.yml which runs the same checker on a
+#   schedule once a day.
+# ============================================================================
+
+name: Markdown Link Check
+
+on:
+  push:
+    branches:
+      - main
+    # Only re-run when Markdown files actually changed. This tiny filter
+    # saves your free minutes: renaming code files shouldn't spend them.
+    paths:
+      - "**.md"
+
+  pull_request:
+    paths:
+      - "**.md"
+
+jobs:
+  # One job, one matching name, no permissions needed at all.
+  markdown-link-check:
+    name: Check every link in Markdown files
+    runs-on: ubuntu-latest
+
+    # Read-only is already the default for public repos, but writing the
+    # empty set here makes the intent obvious to future-you.
+    permissions: {}
+
+    steps:
+      # Download your repo's files onto the runner first — the checker
+      # scans files locally, it does not fetch your repo over GitHub's API.
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      # Run the checker. This is a community-maintained action
+      # (gaurav-nelson/github-action-markdown-link-check). It walks your
+      # repo, extracts every http/https link from every .md file, and
+      # tries each one. Exit code 0 = all good; anything else fails the
+      # run so you see exactly which links broke, file by file, in the log.
+      #
+      # Inputs explained, plain English:
+      #   check-path "." -> scan the whole repository.
+      #   use-quiet-mode: yes -> print results only for broken links,
+      #     keeping the log short and readable.
+      #   retry-count "2" -> before declaring a link dead, try it twice
+      #   more with pauses between tries. Websites hiccup; this stops a
+      #   temporarily-slow site from failing your whole run.
+      - name: Check Markdown links
+        uses: gaurav-nelson/github-action-markdown-link-check@v1
+        with:
+          check-path: "."
+          use-quiet-mode: "yes"
+          retry-count: "2"
+
+      # Honest note, plain English: some websites block robots (login
+      # walls, some stores) and can never be verified. When a check
+      # fails, open the log, read the file line and URL, then decide:
+      # "the site is really gone" (fix the link), or "the site blocks
+      # robots" (either leave a note for future-you or remove the link).
+
+      # A friendly end-of-run summary, same trick as in workflow 01:
+      # append a short human note to the run's summary page.
+      - name: Report status
+        if: always()
+        run: |
+          echo "### Markdown Link Check" >> "$GITHUB_STEP_SUMMARY"
+          echo "All Markdown links were checked. If any failed, open the 'Check Markdown links' log above to see file, line, and the broken URL." >> "$GITHUB_STEP_SUMMARY"

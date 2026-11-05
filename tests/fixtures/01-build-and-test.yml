@@ -1,0 +1,133 @@
+# ============================================================================
+# 01 — BUILD & TEST
+# ----------------------------------------------------------------------------
+# What this workflow does, in one sentence:
+#   Every time you push code or open a pull request, GitHub runs your
+#   project's tests on a free, freshly-created computer and tells you
+#   whether they passed.
+#
+# Who needs this:
+#   Any project with tests — a Python tool, a Node app, anything at all.
+#   If you have no tests yet, this workflow simply reports "nothing to do"
+#   (each test step is guarded by a file check below).
+#
+# Secrets required:  NONE. Everything below uses only what GitHub
+#   gives you for free inside the run (checkout, the runner itself).
+#
+# Cost:  free on public repositories; free private repos get ~2,000
+#   free "Actions minutes" per month (see docs/cost-notes.md).
+# ============================================================================
+
+# "name" is the title you'll see in the Actions tab. Keep it friendly.
+name: Build and Test
+
+# "on" means: WHEN should this workflow run?
+# Here: every push to any branch, and every pull request. Change or
+# delete lines freely — you can't break GitHub by editing "on".
+on:
+  push:
+    branches:
+      - main        # run on every push to the main branch
+  pull_request: {}   # and on every pull request, from any branch
+
+# "jobs" is the list of things to do. Each job gets its OWN fresh
+# virtual computer, created just for this run and thrown away after.
+jobs:
+  # "build-and-test" is just the job's ID. The human-readable name is below.
+  build-and-test:
+    name: Run the project's tests
+
+    # "runs-on" picks the free operating system. ubuntu-latest is the
+    # default machine most people should use. It costs the least minutes.
+    runs-on: ubuntu-latest
+
+    # A job with zero required secrets should fail loudly, not silently
+    # wait. "permissions: {}" says: this job needs NO write access to
+    # anything — a good safety default for anything that just runs tests.
+    permissions: {}
+
+    # "steps" is the recipe. GitHub runs these from top to bottom.
+    steps:
+      # STEP 1 — download ("check out") your code onto the runner.
+      # "uses" means: run a pre-built, reusable action written by someone
+      # else. actions/checkout is GitHub's official one and it needs no
+      # login or secret for public repos. Pin a full version (v4) so your
+      # workflow behaves the same tomorrow as today.
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      # STEP 2 (optional) — set up Node if the project uses JavaScript.
+      # The "if:" line is a guard: this step only runs when a
+      # package.json file exists somewhere in your repo. If your project
+      # isn't a JavaScript project, this step is silently skipped.
+      # hashFiles('**/package.json') returns a "fingerprint string" of
+      # the file if the file exists, or an empty string if it doesn't.
+      - name: Set up Node.js (only if the project uses Node)
+        if: hashFiles('**/package.json') != ''
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # STEP 3 (optional) — install Node dependencies, if any are listed.
+      # "npm ci" installs exactly what package-lock.json recorded —
+      # it's the reproducible little cousin of "npm install". It is also
+      # skipped when there is nothing to install.
+      # The "npm run build --if-present" lines run a build script ONLY
+      # if your package.json defines one; otherwise it's a breeze.
+      - name: Install Node dependencies and build (only if defined)
+        if: hashFiles('**/package.json') != ''
+        run: |
+          npm ci || npm install --no-audit --no-fund
+          npm run build --if-present
+
+      # STEP 4 (optional) — run Node tests, but never fail if no test
+      # script is defined. "--if-present" makes npm check for a "test"
+      # script and quietly do nothing when there isn't one.
+      - name: Run Node tests (only if a test script exists)
+        if: hashFiles('**/package.json') != ''
+        run: npm test --if-present
+
+      # STEP 5 (optional) — set up Python if the project uses it.
+      # Same guard trick as Node: only runs when a Python dependency
+      # file is present. "python-version: 3.x" means "give me the newest
+      # stable Python 3 you have" — fine for most projects.
+      - name: Set up Python (only if the project uses Python)
+        if: hashFiles('**/requirements.txt') != '' || hashFiles('**/pyproject.toml') != ''
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.x
+
+      # STEP 6 (optional) — install Python dependencies, if listed.
+      # The "|| true" means: if pip finds no lock file, carry on anyway
+      # (some projects have none and use pyproject.toml directly).
+      - name: Install Python dependencies (only if listed)
+        if: hashFiles('**/requirements.txt') != '' || hashFiles('**/pyproject.toml') != ''
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt || true
+
+      # STEP 7 (optional) — run the Python test suite with pytest.
+      # "pip install pytest || true" means: try to install pytest, and
+      # even if it's already there, carry on calmly. The guard on "if:"
+      # is stricter here — this step runs only when actual test files
+      # exist (files named test_*.py / *_test.py). Without that guard,
+      # a project with no tests yet would "fail" just for having no
+      # tests, which would be a bit harsh on a first-day repo.
+      - name: Run Python tests (only if test files exist)
+        if: hashFiles('**/test_*.py') != '' || hashFiles('**/*_test.py') != ''
+        run: |
+          pip install pytest || true
+          pytest -q
+
+      # STEP 8 — always finish with a friendly summary so that a human
+      # reading the run (possibly you, four months from now) sees what
+      # happened, without digging through log pages.
+      # The "$GITHUB_STEP_SUMMARY" file is a magic notebook GitHub turns
+      # into a pretty table at the top of the run page.
+      - name: Write a short summary
+        if: always()   # run this even if a previous step failed
+        run: |
+          echo "### Build & Test results" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Node configured:  ${{ hashFiles('**/package.json') != '' }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Python configured: ${{ hashFiles('**/requirements.txt') != '' || hashFiles('**/pyproject.toml') != '' }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "If steps were skipped above, your project simply has no tests registered yet." >> "$GITHUB_STEP_SUMMARY"

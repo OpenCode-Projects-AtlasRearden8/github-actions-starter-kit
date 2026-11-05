@@ -1,0 +1,76 @@
+# ============================================================================
+# 04 — RELEASE TAG & NOTES
+# ----------------------------------------------------------------------------
+# What this workflow does, in one sentence:
+#   When you create a version tag like "v1.0" and push it, GitHub turns
+#   that tag into a real, public "Release" page with tidy release notes
+#   generated from your commits — automatically, every time.
+#
+# Who needs this:
+#   Any project you want to version: an e-book draft, a template, an app.
+#   Releases give readers a stable place to download "the finished thing"
+#   instead of scrambling from commit to commit.
+#
+# Secrets required:  NONE. The release is published with GitHub's
+#   built-in GITHUB_TOKEN, which these actions receive automatically.
+#
+# How you "use" this workflow (there is no copy-paste step beyond saving
+# the file — afterwards, a release is triggered by two plain commands):
+#
+#     git tag v1.0          # put a nametag on the current commit — the tag name (v1.0) matches the "v*" pattern below
+#     git push origin v1.0  # tell GitHub about it
+#
+#   GitHub then runs this workflow and creates the Release page. Do this
+#   again as v1.1 later, and a brand-new version is published.
+# ============================================================================
+
+name: Create a Release when a version tag is pushed
+
+# Trigger: only when a tag whose name starts with "v" (v1, v1.0, v2.3.1...)
+# is pushed. All ordinary commits are ignored.,wildcard "v*" matches every
+# version number without you ever editing this file again.
+on:
+  push:
+    tags:
+      - "v*"
+
+# What the workflow is allowed to touch. To create a Release it needs
+# to WRITE contents. That's the built-in GITHUB_TOKEN, not a secret
+# you manage — GitHub hands it out and revokes it automatically.
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Publish a release with automatic notes
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      # The one publishing step. softprops/action-gh-release is a widely
+      # used community action for making Release pages. Inputs, plainly:
+      #   generate_release_notes: true
+      #       Let GitHub write the notes FOR you: a title, a link to the
+      #       commits since the last release, and it even credits new
+      #       contributors. Free, tidy, and zero-secret.
+      #   make_latest: "true"
+      #       Mark this new version as the "current" one on the Releases
+      #       page (readers always land on the newest first).
+      #
+      # No files are attached by default — an e-book or template repo
+      # stays lean. If your release SHOULD include files (like a zip of
+      # the book), add "files:" below, e.g. files: dist/*
+      - name: Create the Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          make_latest: "true"
+
+      # A tidy summary at the top of the run page for future-you.
+      - name: Report the release
+        if: always()
+        run: |
+          echo "### Release summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Tag that started this run: \`${{ github.ref_name }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Release page: https://github.com/${{ github.repository }}/releases" >> "$GITHUB_STEP_SUMMARY"

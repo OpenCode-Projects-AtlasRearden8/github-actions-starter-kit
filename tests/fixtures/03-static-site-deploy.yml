@@ -1,0 +1,123 @@
+# ============================================================================
+# 03 — STATIC SITE DEPLOY TO GITHUB PAGES
+# ----------------------------------------------------------------------------
+# What this workflow does, in one sentence:
+#   Whenever you change your website's files, GitHub builds your site and
+#   publishes it to your free GitHub Pages address
+#   (https://YOURNAME.github.io/YOURREPO/) automatically.
+#
+# Who needs this:
+#   Solo publishers hosting landing pages, hubs, or book previews.
+#   The example below deploys whatever files sit directly in your repo
+#   root (plain HTML/CSS/JS). If you use a site generator instead, see
+#   the "Adapt it" section at the bottom.
+#
+# Secrets required:  NONE. GitHub creates a special, robotic
+#   "GITHUB_TOKEN" token for every run and hands it to these official
+#   actions safely behind the scenes. You never write a secret down.
+#
+# One-time setup (this is the part people forget — do it once):
+#   1. On your repository, open  Settings → Pages.
+#   2. Under "Build and deployment", set Source: "GitHub Actions".
+#   Done. After that, every push to main republishes the site.
+# ============================================================================
+
+name: Deploy static site to GitHub Pages
+
+# "on" means WHEN to deploy. Here: solid pushes to main.
+# Deploys happen on push only — pull requests just preview code, they
+# never publish. That's a good rule: publishing is a deliberate act.
+on:
+  push:
+    branches:
+      - main
+  # The "workflow_dispatch" line adds a manual ▶ Run button in the
+  # Actions tab, so you can redeploy by hand whenever you like.
+  workflow_dispatch:
+
+# Tell GitHub this workflow is ALLOWED to publish your Pages site.
+# These are not secrets — they're permissions granted to GitHub's own
+# robotic token, scoped narrowly to what this workflow says it needs.
+permissions:
+  contents: read        # read your files (needed to build the site)
+  pages: write          # allowed to write to the Pages service
+  id-token: write       # allowed to prove "it's me" to Pages (OIDC)
+
+# Publish one site at a time. This makes sure a deploy that starts
+# later waits politely for an earlier one instead of racing it.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build the website
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      # Ask GitHub where this site will end up. This is a bookkeeping
+      # step: it records your site's base URL and remembers that the
+      # Pages service should expect an update from THIS workflow. If you
+      # forgot the one-time "Settings → Pages" switch above, this step
+      # usually points that out in its error message.
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      # BUILD YOUR SITE HERE.
+      # This example ships the files exactly as they are (plain HTML).
+      # Replace this single "run:" block with your generator's build
+      # command if you use one — see "Adapt it" below.
+      - name: Build the site (plain layout, nothing to transform)
+        run: |
+          mkdir -p _site
+          # Copy everything EXCEPT hidden folders (like .git and .github)
+          # into _site. find prints files and folders; we copy each one.
+          find . -maxdepth 1 -mindepth 1 \
+            ! -name "." ! -name ".git" ! -name ".github" ! -name "_site" \
+            -exec cp -r {} _site/ \;
+
+      # Package the built folder into something Pages can receive.
+      - name: Upload site files
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    name: Publish to GitHub Pages
+    needs: build        # only run after the build job succeeded
+    runs-on: ubuntu-latest
+
+    # This is the "environment" feature. Naming it here makes GitHub
+    # show a green/red publish history you can read like a log book.
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}   # the live site's address
+
+    steps:
+      # The actual publish. actions/deploy-pages takes the uploaded
+      # artifact from the build job and makes it live at your site URL.
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+# ----------------------------------------------------------------------------
+# Adapt it: build commands for common site generators. Find the "Build the
+# site" step above and swap its run block for one of these:
+#
+#   plain HTML : keep this file exactly as it is (no change needed)
+#
+#   Hugo       : run: |
+#                  hugo --minify
+#                and set the upload path to:  public
+#
+#   Jekyll     : run: |
+#                  jekyll build
+#                and set the upload path to:  _site
+#
+#   MkDocs     : run: |
+#                  pip install mkdocs-material
+#                  mkdocs build
+#                and set the upload path to:  site
+# ============================================================================

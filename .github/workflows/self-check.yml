@@ -1,0 +1,42 @@
+# The starter kit's own safety net.
+#
+# This small workflow runs the kit's offline test suite every time code or
+# fixtures change here in THIS repository. It demonstrates workflow 01's
+# "build and test" pattern in miniature: no secrets, pinned action
+# versions, and a written summary a human can read in five seconds.
+#
+# Plain-English summary of what it does: every time someone (you) pushes
+# to main or opens a pull request, GitHub checks that the copy-ready
+# workflows, their validated fixtures, the docs and the LICENSE all
+# still agree with each other.
+
+name: Kit self-check
+
+on:
+  push:
+    branches:
+      - main
+  pull_request: {}
+  workflow_dispatch: {}
+
+permissions: {}
+
+jobs:
+  self-check:
+    name: Run the offline test suite
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      # Install actionlint (a free, standalone checker tool) with the
+      # one-command installer from its official release page. No
+      # account, key, or secret is involved. The harness uses it when
+      # available; otherwise it would fall back to its structural check.
+      - name: Install actionlint
+        run: bash <(curl -s https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
+
+      - name: Run all tests
+        run: |
+          # Hand the freshly downloaded binary to the harness.
+          PATH="$PATH:$(pwd)/bin" bash tests/run_tests.sh

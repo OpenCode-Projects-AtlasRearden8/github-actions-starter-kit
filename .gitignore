@@ -1,7 +1,13 @@
-# A local copy of actionlint may live here; binaries are never committed.
-tools/
-bin/
 
+# A local copy of actionlint may live here; binaries are never committed.
 # Local Python artifacts and OS clutter.
-__pycache__/
+*.pyc
 .DS_Store
+.env
+.env.*
+.venv/
+__pycache__/
+bin/
+dist/*.tmp
+node_modules/
+tools/
